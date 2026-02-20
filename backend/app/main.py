@@ -686,6 +686,214 @@ def create_circle(circle: schemas.CircleCreate, db: Session = Depends(get_db)):
     db.refresh(db_circle)
     return db_circle
 
+@app.get("/circles/{circle_id}", response_model=schemas.CircleWithMembers)
+def get_circle(circle_id: int, db: Session = Depends(get_db)):
+    circle = db.query(models.Circle).filter(models.Circle.id == circle_id).first()
+    if not circle:
+        raise HTTPException(status_code=404, detail="圈子不存在")
+    
+    members = []
+    for pc in circle.person_circles:
+        person = db.query(models.Person).filter(models.Person.id == pc.person_id).first()
+        if person:
+            person_dict = {
+                "id": person.id,
+                "name": person.name,
+                "avatar": person.avatar,
+                "profile": person.profile,
+                "created_at": person.created_at,
+                "updated_at": person.updated_at,
+                "events": person.events,
+                "annotations": person.annotations,
+                "developments": person.developments
+            }
+            members.append(schemas.Person(**person_dict))
+    
+    return schemas.CircleWithMembers(
+        id=circle.id,
+        name=circle.name,
+        color=circle.color,
+        created_at=circle.created_at,
+        members=members
+    )
+
+@app.put("/circles/{circle_id}", response_model=schemas.Circle)
+def update_circle(circle_id: int, circle_update: schemas.CircleUpdate, db: Session = Depends(get_db)):
+    circle = db.query(models.Circle).filter(models.Circle.id == circle_id).first()
+    if not circle:
+        raise HTTPException(status_code=404, detail="圈子不存在")
+    
+    if circle_update.name is not None:
+        existing_circle = db.query(models.Circle).filter(
+            models.Circle.name == circle_update.name,
+            models.Circle.id != circle_id
+        ).first()
+        if existing_circle:
+            raise HTTPException(status_code=400, detail="圈子名称已存在")
+        circle.name = circle_update.name
+    
+    if circle_update.color is not None:
+        circle.color = circle_update.color
+    
+    db.commit()
+    db.refresh(circle)
+    return circle
+
+@app.delete("/circles/{circle_id}")
+def delete_circle(circle_id: int, db: Session = Depends(get_db)):
+    circle = db.query(models.Circle).filter(models.Circle.id == circle_id).first()
+    if not circle:
+        raise HTTPException(status_code=404, detail="圈子不存在")
+    db.delete(circle)
+    db.commit()
+    return {"success": True, "message": "圈子删除成功"}
+
+@app.post("/circles/{circle_id}/persons/{person_id}")
+def assign_person_to_circle(circle_id: int, person_id: int, db: Session = Depends(get_db)):
+    circle = db.query(models.Circle).filter(models.Circle.id == circle_id).first()
+    if not circle:
+        raise HTTPException(status_code=404, detail="圈子不存在")
+    
+    person = db.query(models.Person).filter(models.Person.id == person_id).first()
+    if not person:
+        raise HTTPException(status_code=404, detail="人物不存在")
+    
+    existing = db.query(models.PersonCircle).filter(
+        models.PersonCircle.circle_id == circle_id,
+        models.PersonCircle.person_id == person_id
+    ).first()
+    if existing:
+        return {"success": True, "message": "人物已在圈子中"}
+    
+    pc = models.PersonCircle(circle_id=circle_id, person_id=person_id)
+    db.add(pc)
+    db.commit()
+    return {"success": True, "message": "人物添加成功"}
+
+@app.delete("/circles/{circle_id}/persons/{person_id}")
+def remove_person_from_circle(circle_id: int, person_id: int, db: Session = Depends(get_db)):
+    pc = db.query(models.PersonCircle).filter(
+        models.PersonCircle.circle_id == circle_id,
+        models.PersonCircle.person_id == person_id
+    ).first()
+    if not pc:
+        raise HTTPException(status_code=404, detail="人物不在该圈子中")
+    db.delete(pc)
+    db.commit()
+    return {"success": True, "message": "人物移除成功"}
+
+@app.get("/circles-with-members", response_model=List[schemas.CircleWithMembers])
+def get_circles_with_members(db: Session = Depends(get_db)):
+    circles = db.query(models.Circle).all()
+    result = []
+    for circle in circles:
+        members = []
+        for pc in circle.person_circles:
+            person = db.query(models.Person).filter(models.Person.id == pc.person_id).first()
+            if person:
+                person_dict = {
+                    "id": person.id,
+                    "name": person.name,
+                    "avatar": person.avatar,
+                    "profile": person.profile,
+                    "created_at": person.created_at,
+                    "updated_at": person.updated_at,
+                    "events": person.events,
+                    "annotations": person.annotations,
+                    "developments": person.developments
+                }
+                members.append(schemas.Person(**person_dict))
+        result.append(schemas.CircleWithMembers(
+            id=circle.id,
+            name=circle.name,
+            color=circle.color,
+            created_at=circle.created_at,
+            members=members
+        ))
+    return result
+
+def get_semantic_similarity(s1: str, s2: str) -> float:
+    s1_lower = s1.lower()
+    s2_lower = s2.lower()
+    
+    synonyms = {
+        'ai': ['人工智能', 'artificial intelligence'],
+        '人工智能': ['ai', 'artificial intelligence'],
+        '芯片': ['半导体', '集成电路'],
+        '半导体': ['芯片', '集成电路'],
+    }
+    
+    if s1_lower in synonyms:
+        if s2_lower in synonyms[s1_lower]:
+            return 1.0
+    if s2_lower in synonyms:
+        if s1_lower in synonyms[s2_lower]:
+            return 1.0
+    
+    return calculate_similarity(s1_lower, s2_lower)
+
+@app.post("/circles/auto-generate", response_model=schemas.AutoGenerateCirclesResponse)
+def auto_generate_circles(db: Session = Depends(get_db)):
+    MORANDI_COLORS = ['#4A7B9C', '#9B6B6B', '#5F7256', '#B5A189', '#9251A8']
+    
+    persons = db.query(models.Person).all()
+    
+    content_groups = {}
+    for person in persons:
+        for dev in person.developments:
+            content = dev.content
+            if not content:
+                continue
+            
+            found_group = None
+            for existing_content in content_groups.keys():
+                if get_semantic_similarity(content, existing_content) >= 0.8:
+                    found_group = existing_content
+                    break
+            
+            if found_group:
+                if person.id not in content_groups[found_group]:
+                    content_groups[found_group].append(person.id)
+            else:
+                content_groups[content] = [person.id]
+    
+    suggested_circles = []
+    for i, (content, person_ids) in enumerate(content_groups.items()):
+        color = MORANDI_COLORS[i % len(MORANDI_COLORS)]
+        suggested_circles.append(schemas.SuggestedCircle(
+            name=content,
+            color=color,
+            person_ids=person_ids
+        ))
+    
+    return schemas.AutoGenerateCirclesResponse(suggested_circles=suggested_circles)
+
+@app.post("/circles/confirm")
+def confirm_circles(request: schemas.ConfirmCirclesRequest, db: Session = Depends(get_db)):
+    for circle_data in request.circles:
+        existing_circle = db.query(models.Circle).filter(models.Circle.name == circle_data.name).first()
+        
+        if existing_circle:
+            for person_id in circle_data.person_ids:
+                existing = db.query(models.PersonCircle).filter(
+                    models.PersonCircle.circle_id == existing_circle.id,
+                    models.PersonCircle.person_id == person_id
+                ).first()
+                if not existing:
+                    pc = models.PersonCircle(circle_id=existing_circle.id, person_id=person_id)
+                    db.add(pc)
+        else:
+            db_circle = models.Circle(name=circle_data.name, color=circle_data.color)
+            db.add(db_circle)
+            db.flush()
+            
+            for person_id in circle_data.person_ids:
+                pc = models.PersonCircle(circle_id=db_circle.id, person_id=person_id)
+                db.add(pc)
+    
+    db.commit()
+    return {"success": True, "message": "圈子创建成功"}
+
 @app.delete("/persons/{person_id}")
 def delete_person(person_id: int, db: Session = Depends(get_db)):
     person = db.query(models.Person).filter(models.Person.id == person_id).first()

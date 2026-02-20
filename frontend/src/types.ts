@@ -74,6 +74,20 @@ export interface Circle {
   created_at: string;
 }
 
+export interface CircleWithMembers extends Circle {
+  members: Person[];
+}
+
+export interface SuggestedCircle {
+  name: string;
+  color: string;
+  person_ids: number[];
+}
+
+export interface AutoGenerateCirclesResponse {
+  suggested_circles: SuggestedCircle[];
+}
+
 export interface ConfirmRequest {
   original_text: string;
   is_new_person: boolean;

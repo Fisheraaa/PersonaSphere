@@ -1,11 +1,12 @@
 import { create } from 'zustand';
-import type { Person, ExtractResponse, GraphResponse, Circle } from './types';
-import { getPersons, getGraph, getCircles } from './api';
+import type { Person, ExtractResponse, GraphResponse, Circle, CircleWithMembers } from './types';
+import { getPersons, getGraph, getCircles, getCirclesWithMembers } from './api';
 
 interface AppState {
   persons: Person[];
   graphData: GraphResponse | null;
   circles: Circle[];
+  circlesWithMembers: CircleWithMembers[];
   extractedData: ExtractResponse | null;
   originalText: string;
   loading: boolean;
@@ -15,6 +16,7 @@ interface AppState {
   setPersons: (persons: Person[]) => void;
   setGraphData: (data: GraphResponse) => void;
   setCircles: (circles: Circle[]) => void;
+  setCirclesWithMembers: (circles: CircleWithMembers[]) => void;
   setExtractedData: (data: ExtractResponse | null) => void;
   setOriginalText: (text: string) => void;
   setLoading: (loading: boolean) => void;
@@ -24,12 +26,14 @@ interface AppState {
   fetchPersons: () => Promise<void>;
   fetchGraphData: () => Promise<void>;
   fetchCircles: () => Promise<void>;
+  fetchCirclesWithMembers: () => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set) => ({
   persons: [],
   graphData: null,
   circles: [],
+  circlesWithMembers: [],
   extractedData: null,
   originalText: '',
   loading: false,
@@ -39,6 +43,7 @@ export const useAppStore = create<AppState>((set) => ({
   setPersons: (persons) => set({ persons }),
   setGraphData: (data) => set({ graphData: data }),
   setCircles: (circles) => set({ circles }),
+  setCirclesWithMembers: (circles) => set({ circlesWithMembers: circles }),
   setExtractedData: (data) => set({ extractedData: data }),
   setOriginalText: (text) => set({ originalText: text }),
   setLoading: (loading) => set({ loading }),
@@ -76,6 +81,18 @@ export const useAppStore = create<AppState>((set) => ({
       set({ circles });
     } catch (error) {
       set({ error: '获取圈子列表失败' });
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  fetchCirclesWithMembers: async () => {
+    try {
+      set({ loading: true, error: null });
+      const circles = await getCirclesWithMembers();
+      set({ circlesWithMembers: circles });
+    } catch (error) {
+      set({ error: '获取圈子成员失败' });
     } finally {
       set({ loading: false });
     }

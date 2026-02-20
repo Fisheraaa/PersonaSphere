@@ -295,7 +295,7 @@ export function InfoPage() {
         existingPerson={conflictPerson}
         suggestedName={tempExtractedData?.profile?.name ? 
           (() => {
-            let name = tempExtractedData.profile.name;
+            const name = tempExtractedData.profile.name;
             let suffix = 2;
             while (persons.some(p => p.name === `${name}(${suffix})`)) {
               suffix++;

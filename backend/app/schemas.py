@@ -101,12 +101,27 @@ class CircleBase(BaseModel):
 class CircleCreate(CircleBase):
     pass
 
+class CircleUpdate(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
+
 class Circle(CircleBase):
     id: int
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+class CircleWithMembers(CircleBase):
+    id: int
+    created_at: datetime
+    members: List[Person] = []
+
+    class Config:
+        from_attributes = True
+
+class AssignPersonRequest(BaseModel):
+    person_id: int
 
 class PersonCircleBase(BaseModel):
     person_id: int
@@ -183,6 +198,17 @@ class ConflictItem(BaseModel):
     existing: Any
     new: Any
     action: Optional[str] = None
+
+class SuggestedCircle(BaseModel):
+    name: str
+    color: str
+    person_ids: List[int]
+
+class AutoGenerateCirclesResponse(BaseModel):
+    suggested_circles: List[SuggestedCircle]
+
+class ConfirmCirclesRequest(BaseModel):
+    circles: List[SuggestedCircle]
 
 class CompareResponse(BaseModel):
     profile: ExtractedProfile

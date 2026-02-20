@@ -6,6 +6,9 @@ import type {
   Person,
   GraphResponse,
   Circle,
+  CircleWithMembers,
+  AutoGenerateCirclesResponse,
+  SuggestedCircle,
 } from './types';
 
 const API_BASE_URL = 'http://localhost:8000';
@@ -59,6 +62,37 @@ export const getCircles = async (): Promise<Circle[]> => {
 export const createCircle = async (name: string, color: string): Promise<Circle> => {
   const response = await api.post<Circle>('/circles', { name, color });
   return response.data;
+};
+
+export const updateCircle = async (circleId: number, data: { name?: string; color?: string }): Promise<Circle> => {
+  const response = await api.put<Circle>(`/circles/${circleId}`, data);
+  return response.data;
+};
+
+export const deleteCircle = async (circleId: number): Promise<void> => {
+  await api.delete(`/circles/${circleId}`);
+};
+
+export const getCirclesWithMembers = async (): Promise<CircleWithMembers[]> => {
+  const response = await api.get<CircleWithMembers[]>('/circles-with-members');
+  return response.data;
+};
+
+export const assignPersonToCircle = async (circleId: number, personId: number): Promise<void> => {
+  await api.post(`/circles/${circleId}/persons/${personId}`);
+};
+
+export const removePersonFromCircle = async (circleId: number, personId: number): Promise<void> => {
+  await api.delete(`/circles/${circleId}/persons/${personId}`);
+};
+
+export const autoGenerateCircles = async (): Promise<AutoGenerateCirclesResponse> => {
+  const response = await api.post<AutoGenerateCirclesResponse>('/circles/auto-generate');
+  return response.data;
+};
+
+export const confirmCircles = async (circles: SuggestedCircle[]): Promise<void> => {
+  await api.post('/circles/confirm', { circles });
 };
 
 export const deletePerson = async (personId: number): Promise<void> => {
