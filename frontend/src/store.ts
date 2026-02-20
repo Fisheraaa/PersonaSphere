@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Person, ExtractResponse, GraphResponse, Circle } from './types';
+import type { Person, ExtractResponse, GraphResponse, Circle } from './types';
 import { getPersons, getGraph, getCircles } from './api';
 
 interface AppState {
@@ -8,18 +8,18 @@ interface AppState {
   circles: Circle[];
   extractedData: ExtractResponse | null;
   originalText: string;
-  currentStep: 'input' | 'confirm';
   loading: boolean;
   error: string | null;
+  isComparedData: boolean;
   
   setPersons: (persons: Person[]) => void;
   setGraphData: (data: GraphResponse) => void;
   setCircles: (circles: Circle[]) => void;
   setExtractedData: (data: ExtractResponse | null) => void;
   setOriginalText: (text: string) => void;
-  setCurrentStep: (step: 'input' | 'confirm') => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  setIsComparedData: (isCompared: boolean) => void;
   
   fetchPersons: () => Promise<void>;
   fetchGraphData: () => Promise<void>;
@@ -32,18 +32,18 @@ export const useAppStore = create<AppState>((set) => ({
   circles: [],
   extractedData: null,
   originalText: '',
-  currentStep: 'input',
   loading: false,
   error: null,
+  isComparedData: false,
 
   setPersons: (persons) => set({ persons }),
   setGraphData: (data) => set({ graphData: data }),
   setCircles: (circles) => set({ circles }),
   setExtractedData: (data) => set({ extractedData: data }),
   setOriginalText: (text) => set({ originalText: text }),
-  setCurrentStep: (step) => set({ currentStep: step }),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
+  setIsComparedData: (isCompared) => set({ isComparedData: isCompared }),
 
   fetchPersons: async () => {
     try {

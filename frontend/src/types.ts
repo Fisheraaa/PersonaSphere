@@ -27,6 +27,7 @@ export interface ExtractedProfile {
   name: string;
   job?: string;
   birthday?: string;
+  notes: string[];
   events: Event[];
 }
 

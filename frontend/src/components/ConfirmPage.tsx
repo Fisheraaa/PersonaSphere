@@ -1,24 +1,30 @@
 import { useState } from 'react';
 import { Layout, Card, Typography, Row, Col, Button, Space, Input, List, Divider, message, Tag, Modal } from 'antd';
-import { SaveOutlined, ArrowLeftOutlined, PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
+import { SaveOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useAppStore } from '../store';
 import { confirmData } from '../api';
-import { Event, Annotation, Development, ExtractedRelation } from '../types';
+import type { Event, Annotation, Development, ExtractedRelation } from '../types';
 
 const { Title, Text, Paragraph } = Typography;
 const { Content } = Layout;
 
 const MORANDI_COLORS = ['#4A7B9C', '#9B6B6B', '#5F7256', '#B5A189', '#9251A8'];
 
-export function ConfirmPage() {
-  const { extractedData, originalText, persons, setCurrentStep, setExtractedData, fetchPersons } = useAppStore();
+interface ConfirmPageProps {
+  onComplete?: () => void;
+  isUpdatingExisting?: boolean;
+  existingPersonId?: number;
+}
+
+export function ConfirmPage({ onComplete, isUpdatingExisting: initialIsUpdatingExisting, existingPersonId: initialExistingPersonId }: ConfirmPageProps) {
+  const { extractedData, originalText, persons, setExtractedData, fetchPersons, isComparedData } = useAppStore();
   const [profile, setProfile] = useState(extractedData?.profile);
   const [annotations, setAnnotations] = useState<Annotation[]>(extractedData?.annotations || []);
   const [developments, setDevelopments] = useState<Development[]>(extractedData?.developments || []);
   const [relations, setRelations] = useState<ExtractedRelation[]>(extractedData?.relations || []);
   const [loading, setLoading] = useState(false);
-  const [isNewPerson, setIsNewPerson] = useState(true);
-  const [existingPersonId, setExistingPersonId] = useState<number | null>(null);
+  const [isNewPerson, setIsNewPerson] = useState(!initialIsUpdatingExisting);
+  const [existingPersonId, setExistingPersonId] = useState<number | undefined>(initialExistingPersonId);
 
   if (!extractedData || !profile) {
     return <div>数据错误</div>;
@@ -35,7 +41,8 @@ export function ConfirmPage() {
         person_id: isNewPerson ? undefined : existingPersonId,
         profile: {
           ...profile,
-          events: profile.events
+          events: profile.events,
+          notes: profile.notes || []
         },
         annotations,
         developments,
@@ -44,8 +51,8 @@ export function ConfirmPage() {
       
       message.success('保存成功');
       await fetchPersons();
-      setCurrentStep('input');
       setExtractedData(null);
+      onComplete?.();
     } catch (error) {
       message.error('保存失败，请重试');
     } finally {
@@ -66,6 +73,7 @@ export function ConfirmPage() {
         },
         onCancel: () => {
           setIsNewPerson(true);
+          setExistingPersonId(undefined);
           setProfile(prev => prev ? { ...prev, name: `${prev.name}(2)` } : prev);
         }
       });
@@ -130,128 +138,221 @@ export function ConfirmPage() {
     setRelations([...relations, { name: '', relation_type: '' }]);
   };
 
+  const handleEditNote = (index: number, value: string) => {
+    const newNotes = [...(profile.notes || [])];
+    newNotes[index] = value;
+    setProfile({ ...profile, notes: newNotes });
+  };
+
+  const handleDeleteNote = (index: number) => {
+    const newNotes = (profile.notes || []).filter((_, i) => i !== index);
+    setProfile({ ...profile, notes: newNotes });
+  };
+
+  const handleAddNote = () => {
+    const newNotes = [...(profile.notes || []), ''];
+    setProfile({ ...profile, notes: newNotes });
+  };
+
   return (
-    <Layout style={{ minHeight: '100vh', background: '#F7F6F1' }}>
-      <Content style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
-        <Space direction="vertical" style={{ width: '100%' }} size="large">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Button
-              icon={<ArrowLeftOutlined />}
-              onClick={() => setCurrentStep('input')}
-              style={{ border: 'none', color: MORANDI_COLORS[0] }}
+    <Layout style={{ minHeight: 'auto', background: '#F7F6F1' }}>
+      <Content style={{ padding: '16px', maxWidth: '1000px', margin: '0 auto' }}>
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          {isComparedData && (
+            <Card
+              style={{
+                borderRadius: '8px',
+                border: `2px solid ${MORANDI_COLORS[0]}`,
+                background: '#F7F6F1',
+              }}
             >
-              返回
-            </Button>
-            <Title level={3} style={{ margin: 0, color: MORANDI_COLORS[0] }}>
-              确认信息
-            </Title>
-            <div style={{ width: '80px' }}></div>
-          </div>
+              <Text style={{ color: MORANDI_COLORS[0], fontWeight: 'bold' }}>
+                以下是新增或冲突的信息，请确认：
+              </Text>
+            </Card>
+          )}
+          <Title level={3} style={{ margin: 0, color: MORANDI_COLORS[0], fontSize: 18 }}>
+            确认信息
+          </Title>
 
           <Card
+            size="small"
             style={{
-              borderRadius: '12px',
-              boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+              borderRadius: '8px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
               border: 'none'
             }}
           >
-            <Title level={5} style={{ color: MORANDI_COLORS[2], marginBottom: '12px' }}>
+            <Title level={5} style={{ color: MORANDI_COLORS[2], marginBottom: '8px', fontSize: 14 }}>
               原始输入
             </Title>
-            <Paragraph style={{ background: '#F7F6F1', padding: '16px', borderRadius: '8px', margin: 0 }}>
+            <Paragraph style={{ background: '#F7F6F1', padding: '12px', borderRadius: '6px', margin: 0, fontSize: 13 }}>
               {originalText}
             </Paragraph>
           </Card>
 
-          <Row gutter={24}>
+          <Row gutter={12}>
             <Col xs={24} md={8}>
               <Card
-                title={
-                  <Space>
-                    <span style={{ color: MORANDI_COLORS[0] }}>档案信息</span>
-                  </Space>
-                }
+                size="small"
+                title={<span style={{ color: MORANDI_COLORS[0], fontSize: 14 }}>档案信息</span>}
                 style={{
-                  borderRadius: '12px',
-                  boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
                   border: 'none'
                 }}
               >
-                <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                <Space direction="vertical" style={{ width: '100%' }} size="small">
                   <div>
-                    <Text strong style={{ color: '#666' }}>姓名</Text>
+                    <Text strong style={{ color: '#666', fontSize: 13 }}>姓名</Text>
                     <Input
+                      size="small"
                       value={profile.name}
                       onChange={(e) => {
                         setProfile({ ...profile, name: e.target.value });
                       }}
                       onBlur={handleNameCheck}
-                      style={{ marginTop: '8px' }}
-                      prefix={sameNamePerson && <Tag color="warning">同名</Tag>}
+                      style={{ marginTop: '4px' }}
+                      prefix={sameNamePerson && <Tag color="warning" style={{ fontSize: 11 }}>同名</Tag>}
                     />
                   </div>
                   <div>
-                    <Text strong style={{ color: '#666' }}>职业</Text>
+                    <Text strong style={{ color: '#666', fontSize: 13 }}>职业</Text>
                     <Input
+                      size="small"
                       value={profile.job || ''}
                       onChange={(e) => setProfile({ ...profile, job: e.target.value })}
-                      style={{ marginTop: '8px' }}
+                      style={{ marginTop: '4px' }}
                     />
                   </div>
                   <div>
-                    <Text strong style={{ color: '#666' }}>生日</Text>
+                    <Text strong style={{ color: '#666', fontSize: 13 }}>生日</Text>
                     <Input
+                      size="small"
                       value={profile.birthday || ''}
                       onChange={(e) => setProfile({ ...profile, birthday: e.target.value })}
-                      placeholder="MM-DD 或 YYYY-MM-DD"
-                      style={{ marginTop: '8px' }}
+                      placeholder="MM-DD"
+                      style={{ marginTop: '4px' }}
                     />
                   </div>
-                  <Divider style={{ margin: '16px 0' }} />
+                  <Divider style={{ margin: '12px 0' }} />
                   <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                      <Text strong style={{ color: '#666' }}>事件</Text>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <Text strong style={{ color: '#666', fontSize: 13 }}>事件</Text>
                       <Button
                         type="text"
+                        size="small"
                         icon={<PlusOutlined />}
                         onClick={handleAddEvent}
                         style={{ color: MORANDI_COLORS[0] }}
-                      >
-                        添加
-                      </Button>
+                      />
+                    </div>
+                    {(() => {
+                      const groups: Record<string, { index: number; event: Event }[]> = {};
+                      profile.events.forEach((event, idx) => {
+                        const key = event.date || `no-date-${idx}`;
+                        if (!groups[key]) {
+                          groups[key] = [];
+                        }
+                        groups[key].push({ index: idx, event });
+                      });
+                      
+                      if (Object.keys(groups).length === 0) {
+                        return null;
+                      }
+                      
+                      return Object.entries(groups).map(([date, items]) => {
+                        const locations = [...new Set(items.map(i => i.event.location).filter(Boolean))];
+                        return (
+                          <Card
+                            key={date}
+                            size="small"
+                            style={{
+                              marginBottom: '8px',
+                              borderRadius: '8px',
+                              background: '#F7F6F1',
+                              border: 'none'
+                            }}
+                          >
+                            <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <Tag color={MORANDI_COLORS[0]} style={{ fontSize: '11px', margin: 0 }}>
+                                {date.startsWith('no-date-') ? '无日期' : date}
+                              </Tag>
+                              {locations.map((loc, locIdx) => (
+                                <Tag key={locIdx} color={MORANDI_COLORS[2]} style={{ fontSize: '11px', margin: 0 }}>
+                                  {loc}
+                                </Tag>
+                              ))}
+                            </div>
+                            {items.map(({ index, event }) => (
+                              <div key={index} style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Space direction="vertical" style={{ flex: 1 }} size="small">
+                                  <Input
+                                    size="small"
+                                    value={event.date}
+                                    onChange={(e) => handleEditEvent(index, 'date', e.target.value)}
+                                    placeholder="日期"
+                                  />
+                                  <Input
+                                    size="small"
+                                    value={event.description}
+                                    onChange={(e) => handleEditEvent(index, 'description', e.target.value)}
+                                    placeholder="描述"
+                                  />
+                                  <Input
+                                    size="small"
+                                    value={event.location || ''}
+                                    onChange={(e) => handleEditEvent(index, 'location', e.target.value)}
+                                    placeholder="地点（可选）"
+                                  />
+                                </Space>
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  danger
+                                  icon={<DeleteOutlined />}
+                                  onClick={() => handleDeleteEvent(index)}
+                                />
+                              </div>
+                            ))}
+                          </Card>
+                        );
+                      });
+                    })()}
+                  </div>
+                  <Divider style={{ margin: '12px 0' }} />
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <Text strong style={{ color: '#666', fontSize: 13 }}>其它信息</Text>
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<PlusOutlined />}
+                        onClick={handleAddNote}
+                        style={{ color: MORANDI_COLORS[0] }}
+                      />
                     </div>
                     <List
-                      dataSource={profile.events}
-                      renderItem={(event, index) => (
+                      size="small"
+                      dataSource={profile.notes || []}
+                      renderItem={(note, index) => (
                         <List.Item
                           actions={[
                             <Button
                               type="text"
+                              size="small"
                               danger
                               icon={<DeleteOutlined />}
-                              onClick={() => handleDeleteEvent(index)}
+                              onClick={() => handleDeleteNote(index)}
                             />
                           ]}
                         >
-                          <Space direction="vertical" style={{ width: '100%' }}>
-                            <Input
-                              value={event.date}
-                              onChange={(e) => handleEditEvent(index, 'date', e.target.value)}
-                              placeholder="日期"
-                              prefix={<span style={{ color: '#5F7256' }}>📅</span>}
-                            />
-                            <Input
-                              value={event.location || ''}
-                              onChange={(e) => handleEditEvent(index, 'location', e.target.value)}
-                              placeholder="地点"
-                              prefix={<span style={{ color: '#4A7B9C' }}>📍</span>}
-                            />
-                            <Input
-                              value={event.description}
-                              onChange={(e) => handleEditEvent(index, 'description', e.target.value)}
-                              placeholder="描述"
-                            />
-                          </Space>
+                          <Input
+                            size="small"
+                            value={note}
+                            onChange={(e) => handleEditNote(index, e.target.value)}
+                            placeholder="如：对海鲜过敏、爱吃榴莲、深圳中学"
+                          />
                         </List.Item>
                       )}
                     />
@@ -262,50 +363,47 @@ export function ConfirmPage() {
 
             <Col xs={24} md={8}>
               <Card
-                title={<span style={{ color: MORANDI_COLORS[1] }}>标注信息</span>}
+                size="small"
+                title={<span style={{ color: MORANDI_COLORS[1], fontSize: 14 }}>标注信息</span>}
                 style={{
-                  borderRadius: '12px',
-                  boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
                   border: 'none'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <Text></Text>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
                   <Button
                     type="text"
+                    size="small"
                     icon={<PlusOutlined />}
                     onClick={handleAddAnnotation}
                     style={{ color: MORANDI_COLORS[1] }}
-                  >
-                    添加
-                  </Button>
+                  />
                 </div>
                 <List
+                  size="small"
                   dataSource={annotations}
                   renderItem={(ann, index) => (
                     <List.Item
                       actions={[
                         <Button
                           type="text"
+                          size="small"
                           danger
                           icon={<DeleteOutlined />}
                           onClick={() => handleDeleteAnnotation(index)}
                         />
                       ]}
                     >
-                      <Space direction="vertical" style={{ width: '100%' }}>
+                      <Space direction="vertical" style={{ width: '100%' }} size="small">
                         <Input
+                          size="small"
                           value={ann.time}
                           onChange={(e) => handleEditAnnotation(index, 'time', e.target.value)}
                           placeholder="时间"
-                          prefix={<span style={{ color: '#9B6B6B' }}>⏰</span>}
                         />
                         <Input
-                          value={ann.location || ''}
-                          onChange={(e) => handleEditAnnotation(index, 'location', e.target.value)}
-                          placeholder="地点"
-                        />
-                        <Input
+                          size="small"
                           value={ann.description}
                           onChange={(e) => handleEditAnnotation(index, 'description', e.target.value)}
                           placeholder="描述"
@@ -319,48 +417,44 @@ export function ConfirmPage() {
 
             <Col xs={24} md={8}>
               <Card
-                title={<span style={{ color: MORANDI_COLORS[4] }}>发展方向</span>}
+                size="small"
+                title={<span style={{ color: MORANDI_COLORS[4], fontSize: 14 }}>发展方向</span>}
                 style={{
-                  borderRadius: '12px',
-                  boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
                   border: 'none'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <Text></Text>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
                   <Button
                     type="text"
+                    size="small"
                     icon={<PlusOutlined />}
                     onClick={handleAddDevelopment}
                     style={{ color: MORANDI_COLORS[4] }}
-                  >
-                    添加
-                  </Button>
+                  />
                 </div>
                 <List
+                  size="small"
                   dataSource={developments}
                   renderItem={(dev, index) => (
                     <List.Item
                       actions={[
                         <Button
                           type="text"
+                          size="small"
                           danger
                           icon={<DeleteOutlined />}
                           onClick={() => handleDeleteDevelopment(index)}
                         />
                       ]}
                     >
-                      <Space direction="vertical" style={{ width: '100%' }}>
+                      <Space direction="vertical" style={{ width: '100%' }} size="small">
                         <Input
+                          size="small"
                           value={dev.content}
                           onChange={(e) => handleEditDevelopment(index, 'content', e.target.value)}
                           placeholder="内容"
-                          prefix={<span style={{ color: '#9251A8' }}>🚀</span>}
-                        />
-                        <Input
-                          value={dev.type}
-                          onChange={(e) => handleEditDevelopment(index, 'type', e.target.value)}
-                          placeholder="类型"
                         />
                       </Space>
                     </List.Item>
@@ -371,55 +465,56 @@ export function ConfirmPage() {
           </Row>
 
           <Card
-            title={<span style={{ color: MORANDI_COLORS[3] }}>人物关系</span>}
+            size="small"
+            title={<span style={{ color: MORANDI_COLORS[3], fontSize: 14 }}>人物关系</span>}
             style={{
-              borderRadius: '12px',
-              boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+              borderRadius: '8px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
               border: 'none'
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <Text></Text>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
               <Button
                 type="text"
+                size="small"
                 icon={<PlusOutlined />}
                 onClick={handleAddRelation}
                 style={{ color: MORANDI_COLORS[3] }}
-              >
-                添加关系
-              </Button>
+              />
             </div>
-            <Row gutter={16}>
+            <Row gutter={8}>
               {relations.map((rel, index) => (
-                <Col xs={24} sm={12} md={8} key={index}>
+                <Col xs={24} sm={8} key={index}>
                   <Card
                     size="small"
                     style={{
-                      marginBottom: '12px',
-                      borderRadius: '8px',
+                      marginBottom: '8px',
+                      borderRadius: '6px',
                       background: '#F7F6F1',
                       border: 'none'
                     }}
                     actions={[
                       <Button
                         type="text"
+                        size="small"
                         danger
                         icon={<DeleteOutlined />}
                         onClick={() => handleDeleteRelation(index)}
                       />
                     ]}
                   >
-                    <Space direction="vertical" style={{ width: '100%' }}>
+                    <Space direction="vertical" style={{ width: '100%' }} size="small">
                       <Input
+                        size="small"
                         value={rel.name}
                         onChange={(e) => handleEditRelation(index, 'name', e.target.value)}
                         placeholder="姓名"
                       />
                       <Input
+                        size="small"
                         value={rel.relation_type}
                         onChange={(e) => handleEditRelation(index, 'relation_type', e.target.value)}
-                        placeholder="关系类型"
-                        prefix={<span style={{ color: '#B5A189' }}>👥</span>}
+                        placeholder="关系"
                       />
                     </Space>
                   </Card>
@@ -428,29 +523,22 @@ export function ConfirmPage() {
             </Row>
           </Card>
 
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '16px' }}>
-            <Button
-              size="large"
-              onClick={() => setCurrentStep('input')}
-              style={{ width: '160px', height: '48px', borderRadius: '8px' }}
-            >
-              取消
-            </Button>
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
             <Button
               type="primary"
-              size="large"
+              size="middle"
               icon={<SaveOutlined />}
               onClick={handleConfirm}
               loading={loading}
               style={{
-                width: '200px',
-                height: '48px',
-                borderRadius: '8px',
+                width: '160px',
+                height: '40px',
+                borderRadius: '6px',
                 background: MORANDI_COLORS[0],
                 border: 'none'
               }}
             >
-              保存信息
+              保存
             </Button>
           </div>
         </Space>

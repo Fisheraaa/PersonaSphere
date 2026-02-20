@@ -1,5 +1,5 @@
 import axios from 'axios';
-import {
+import type {
   ExtractResponse,
   ConfirmRequest,
   ConfirmResponse,
@@ -58,5 +58,70 @@ export const getCircles = async (): Promise<Circle[]> => {
 
 export const createCircle = async (name: string, color: string): Promise<Circle> => {
   const response = await api.post<Circle>('/circles', { name, color });
+  return response.data;
+};
+
+export const deletePerson = async (personId: number): Promise<void> => {
+  await api.delete(`/persons/${personId}`);
+};
+
+export const updatePerson = async (personId: number, data: {
+  name?: string;
+  profile?: Record<string, any>;
+  events?: any[];
+  annotations?: any[];
+  developments?: any[];
+}): Promise<Person> => {
+  const response = await api.put<Person>(`/persons/${personId}`, data);
+  return response.data;
+};
+
+export const deleteEvent = async (personId: number, eventId: number): Promise<void> => {
+  await api.delete(`/persons/${personId}/events/${eventId}`);
+};
+
+export const deleteAnnotation = async (personId: number, annotationId: number): Promise<void> => {
+  await api.delete(`/persons/${personId}/annotations/${annotationId}`);
+};
+
+export const deleteDevelopment = async (personId: number, developmentId: number): Promise<void> => {
+  await api.delete(`/persons/${personId}/developments/${developmentId}`);
+};
+
+export interface CheckNameResponse {
+  exists: boolean;
+  person?: {
+    id: number;
+    name: string;
+    job?: string;
+    birthday?: string;
+  };
+}
+
+export const checkName = async (name: string): Promise<CheckNameResponse> => {
+  const response = await api.post<CheckNameResponse>('/extract/check-name', { name });
+  return response.data;
+};
+
+export interface ConflictItem {
+  field: string;
+  existing: any;
+  new: any;
+  action?: string;
+}
+
+export interface CompareResponse {
+  profile: any;
+  annotations: any[];
+  developments: any[];
+  relations: any[];
+  conflicts: ConflictItem[];
+}
+
+export const compareData = async (personId: number, extractedData: any): Promise<CompareResponse> => {
+  const response = await api.post<CompareResponse>('/extract/compare', { 
+    person_id: personId, 
+    extracted_data: extractedData 
+  });
   return response.data;
 };

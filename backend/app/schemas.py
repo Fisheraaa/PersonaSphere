@@ -129,6 +129,7 @@ class ExtractedProfile(BaseModel):
     name: str
     job: Optional[str] = None
     birthday: Optional[str] = None
+    notes: List[str] = Field(default_factory=list)
     events: List[EventBase] = Field(default_factory=list)
 
 class ExtractedRelation(BaseModel):
@@ -176,3 +177,16 @@ class GraphLayoutRequest(BaseModel):
 class GraphLayoutResponse(BaseModel):
     success: bool
     message: str
+
+class ConflictItem(BaseModel):
+    field: str
+    existing: Any
+    new: Any
+    action: Optional[str] = None
+
+class CompareResponse(BaseModel):
+    profile: ExtractedProfile
+    annotations: List[AnnotationBase]
+    developments: List[DevelopmentBase]
+    relations: List[ExtractedRelation]
+    conflicts: List[ConflictItem]
